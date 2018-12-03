@@ -1,0 +1,230 @@
+---
+title: "Project1"
+author: "Zhenjie Zhao, Zhenpeng Liu"
+date: "October 7, 2018"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+# Group Members
+Zhenjie Zhao (zxz170530) , Zhenpeng Liu (zxl171630)
+
+# Ethereum and ERC20 tokens 
+
+
+# Primary Token Selection
+The UTD-ID of the memebers are 2021373350 and 2021377521, so the sum of the ID numbers and mod 20 results in 11. Then the 11th largest file networktenxpayTX.txt is selected.
+
+# Read the dataset from the file
+
+
+```{r}
+rawtokendata <- read.table("/Users/J/Desktop/6313.18f/project/project 1/networktenxpayTX.txt", header = FALSE)
+colnames(rawtokendata) <- c("fromNodeID", "toNodeID", "tunixTime", "ttokenAmount")
+head(rawtokendata)
+```
+
+# Remove the outliers
+Afer doing research from the website, we got the maximum amount of transaction is 1.09347861e+26
+
+```{r}
+tokendataNoOutliers <- subset(rawtokendata, ttokenAmount <= 1.09347861e+26)
+tokendata <- tokendataNoOutliers
+rowNumber <- nrow(tokendata)
+head(tokendata)
+```
+
+# Outliers
+In the dataset tenxpayTX, there is one outlier.
+
+```{r}
+outliers <- subset(rawtokendata, ttokenAmount >= 1.09347861e+26)
+head(outliers)
+```
+
+# Question1
+Find the distribution of how many times a user 1 - buys, 2 - sells a token. Which discrete distribution type fits these distributions best? Estimate distribution parameters.
+
+# Objective to model
+The objective of modeling is trying different kinds of distributions so as to find the one which fits the relationship between buys/sells time and its corresponding frequency best.
+
+# Estimate the distributionNumber of number of buying
+
+## Count the number of buying for each person, which results in the dataset used for estimating the distribution
+```{r}
+library(plyr)
+buyers <- count(tokendata, "toNodeID")
+colnames(buyers) <- c("toNodeID", "buyTimes")
+head(buyers)
+```
+
+# Methods and packages used to fit data
+We use fitdistrplus function to fit the data, which is from the MASS package. It extends the fitdistr function and helps to fit a kind ofparametric distribution to the non-censored or censored data.
+
+## Fit the dataset with different distributions and estimate the corresponding parameters  
+Through making a rough distribution curve by observing the dataset, we think it should be appropriate to try to fit the buys times' distribution using gamma, weibull and exponential distribution.
+
+```{r}
+library(fitdistrplus)
+
+fit_gm <- fitdist(buyers$buyTimes, "gamma")
+fit_wb <- fitdist(buyers$buyTimes, "weibull")
+fit_exp <- fitdist(buyers$buyTimes, "exp")
+summary(fit_gm)
+summary(fit_wb)
+summary(fit_exp)
+plot.legend <- c("gamma", "Weibull", "exponential")
+denscomp(list(fit_gm, fit_wb, fit_exp), legendtext = plot.legend, xlab = "#buying")
+```
+
+If the dataset's buys times fit gamma distribution,  
+    shape = 1.0493593, standard error of shape = 0.003626425  
+    rate = 0.4167558, standard error of rate = 0.001827122
+    
+If the dataset's buys times fit weibull distribution,  
+    shape = 0.8441516, standard error of shape = 0.001075569  
+    scale = 2.0264662, standard error of scale = 0.006961724
+    
+If the dataset's buys times fit exponential distribution,  
+    rate = 0.3970843, standard error of rate = 0.001097376
+
+Through the analysis of three kinds of distributions: gamma, weibull and exponential distribution, it shows that the standard error of estimates for exponential distribution is smaller than the other two distributions'.   
+As a consequence, exponential distributions fits this dataset's buys times' distribution best.
+
+## If the long tail is cut off  
+By observing the dataset, we find that there are cases in which the number of buyTimes is very large while its frequency is very small at the same time. In our assumption, these cases could be considered as singular points and will decrease the accuracy of the estimation.  
+Thus we just remove these points and reserve 99.7% of the dataset, which means the long tail of the curve is cut off.
+
+Here the buying times which are greater than 30 are removed.
+```{r}
+newBuyers <- subset(buyers, buyers$buyTimes < 30)
+```
+
+```{r}
+library(fitdistrplus)
+
+fit_gm <- fitdist(newBuyers$buyTimes, "gamma")
+fit_wb <- fitdist(newBuyers$buyTimes, "weibull")
+fit_exp <- fitdist(newBuyers$buyTimes, "exp")
+summary(fit_gm)
+summary(fit_wb)
+summary(fit_exp)
+plot.legend <- c("gamma", "Weibull", "exponential")
+denscomp(list(fit_gm, fit_wb, fit_exp), legendtext = plot.legend, xlab = "#buying")
+```
+
+If the dataset's buys times fit gamma distribution after cutting off the long tail,  
+    shape = 2.301517, standard error of shape = 0.008436620  
+    rate = 1.265213, standard error of rate = 0.005180418
+    
+If the dataset's buys times fit weibull distribution after cutting off the long tail,  
+    shape = 1.281192, standard error of shape = 0.0022456916  
+    scale = 1.997106, standard error of scale = 0.004597763
+    
+If the dataset's buys times fit exponential distribution after cutting off the long tail,  
+    rate = 0.5497192, standard error of rate = 0.001521333
+    
+Through the analysis of three kinds of distributions after cutting off the long tail: gamma, weibull and exponential distribution, it shows that the standard error of estimates for exponential distribution is smaller than the other two distributions'.  
+
+As a consequence, exponential distribution fits this dataset's buys times' distribution best.  
+
+Comparing buys times'exponential distributions before and after cutting off the long tail, it is clear that Parameters' Loglikelihood increases from -251863.6 to -208689.9, which means the accuracy of the estimation increasing. This justifies our assumption and it is reasonable that using the dataset without these singular points to estimate distribution parameters will give us better results.
+  
+Then estimate the buys times' exponential distribution's paramater.( using dataset after cutting off the long tail)
+```{r}
+message("mean of frequency of buys times is ", mean(newBuyers$buyTimes))
+message("standard deviation of frequency of buys times is ", sd(newBuyers$buyTimes))
+message("Lambda of the buys times' exponential distribution is ", 1/mean(newBuyers$buyTimes))
+```
+
+# Estimate the distributionNumber of number of selling
+
+## Count the number of selling for each person, which results in the dataset used for estimating the distribution
+```{r}
+library(plyr)
+sellers <- count(tokendata, "fromNodeID")
+colnames(sellers) <- c("fromNodeID", "sellTimes")
+head(sellers)
+```
+
+## Fit the dataset with different distributions and estimate the corresponding parameters  
+Through making a rough distribution curve by observing the dataset, we think it should be appropriate to try to fit the sells times' distribution using gamma, weibull and exponential distribution.
+
+```{r}
+library(fitdistrplus)
+
+fit_gm <- fitdist(sellers$sellTimes, "gamma")
+fit_wb <- fitdist(sellers$sellTimes, "weibull")
+fit_exp <- fitdist(sellers$sellTimes, "exp")
+summary(fit_gm)
+summary(fit_wb)
+summary(fit_exp)
+plot.legend <- c("gamma", "Weibull", "exponential")
+denscomp(list(fit_gm, fit_wb, fit_exp), legendtext = plot.legend, xlab = "#selling")
+```
+
+If the dataset's sells times fit gamma distribution,  
+    shape = 0.5250000, standard error of shape = 0.0022849262  
+    rate =  0.1155978, standard error of rate = 0.0007768995
+    
+If the dataset's sells times fit weibull distribution,  
+    shape = 0.7187494, standard error of shape = 0.001147748  
+    scale = 1.9342066, standard error of scale = 0.010616811
+    
+If the dataset's sells times fit exponential distribution,  
+    rate = 0.2201913, standard error of rate = 0.0008171616
+      
+Through the analysis of three kinds of distributions: gamma, weibull and exponential distribution, it shows that the standard error of estimates for exponential distribution is smaller than the other two distributions'.   
+As a consequence, exponential distribution fits this dataset's sells times' distribution best.
+
+## If the long tail is cut off  
+By observing the dataset, we find that there are cases in which the number of sellTimes is very large while its frequency is very small at the same time. In our assumption, these cases could be considered as singular points and will decrease the accuracy of our estimation.  
+Thus we just remove these points and reserve 99.7% of the dataset, which means the long tail of the curve is cut off.  
+  
+Here the buying times which are greater than 30 are removed
+```{r}
+newSellers <- subset(sellers, sellers$sellTimes < 30)
+```
+
+```{r}
+library(fitdistrplus)
+
+fit_gm <- fitdist(newSellers$sellTimes, "gamma")
+fit_wb <- fitdist(newSellers$sellTimes, "weibull")
+fit_exp <- fitdist(newSellers$sellTimes, "exp")
+summary(fit_gm)
+summary(fit_wb)
+summary(fit_exp)
+plot.legend <- c("gamma", "Weibull", "exponential")
+denscomp(list(fit_gm, fit_wb, fit_exp), legendtext = plot.legend, xlab = "#selling")
+```
+
+If the dataset's sells times fit gamma distribution after cutting off the long tail,  
+    shape = 2.482579, standard error of shape = 0.012267846  
+    rate = 1.479561,  standard error of rate = 0.008100946
+    
+If the dataset's sells times fit weibull distribution after cutting off the long tail,  
+    shape = 1.306046, standard error of shape = 0.003032677  
+    scale = 1.850470, standard error of scale = 0.005611602
+    
+If the dataset's sells times fit exponential distribution after cutting off the long tail,  
+    rate = 0.5960074, standard error of rate = 0.002214136
+    
+Through the analysis of three kinds of distributions after cutting off the long tail: gamma, weibull and exponential distribution, it shows that the standard error of estimates for exponential distribution is smaller than the other two distributions'.  
+
+As a consequence, exponential distribution fits this dataset's sells times' distribution best.  
+  
+Comparing sells times'exponential distributions before and after cutting off the long tail, it is clear that Parameters' Loglikelihood increases from -182475.1 to -109956.7, which means the accuracy of the estimation increasing. This justifies our assumption and it is reasonable that using the dataset without these singular points to estimate distribution parameters will give us better results.
+  
+Then estimate the sells times' exponential distribution's paramater.
+```{r}
+message("mean of frequency of sells times is ", mean(newSellers$sellTimes))
+message("standard deviation of frequency of sells times is ", sd(newSellers$sellTimes))
+message("Lambda of the sells times' exponential distribution is ", 1/mean(newSellers$sellTimes))
+```
+
+# Conclusion
+Through the process of fitting above, we find that exponential distribution fits this dataset's buys and sells times' distribution best. Moreover, we find that if singular points(cases that the number of buys&sellTimes is very large while its frequency is very small at the same time) is deleted, the accuracy of the fitting and  estimation will increase. In our opinion, this is a very important and practical technique for the condition in which high level of accuracy of fitting and  estimation is needed.

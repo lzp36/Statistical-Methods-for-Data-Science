@@ -1,0 +1,261 @@
+---
+title: "Project1Q2"
+author: "Zhenjie Zhao, Zhenpeng Liu"
+date: "October 24, 2018"
+output: html_document
+---
+
+# Group Members
+Zhenjie Zhao (zxz170530) , Zhenpeng Liu (zxl171630)
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+# Primary Token Selection
+The UTD-ID of the memebers are 2021373350 and 2021377521, so the sum of the ID numbers and mod 20 results in 11. Then the 11th largest file networktenxpayTX.txt is selected.
+
+#Import data from the file and remove the outliers. 
+We modified a little bit of the header of the price data file in order to import it successfully
+```{r}
+rawTokenData <- read.table("/Users/J/Desktop/6313.18f/project1/networktenxpayTX.txt", header = FALSE)
+colnames(rawTokenData) <- c("fromNodeID", "toNodeID", "tunixTime", "ttokenAmount")
+tokendataNoOutliers <- subset(rawTokenData, ttokenAmount <= 1.09347861e+26)
+tokenData <- tokendataNoOutliers
+rowNumber <- nrow(tokenData)
+priceData <- read.table("/Users/J/Desktop/6313.18f/project1/tenxpay.txt", header = FALSE)
+colnames(priceData) <- c("Date", "Open", "High", "Low", "Close", "Volume", "Market Cap")
+totalTran <- nrow(tokendataNoOutliers)
+maxt <- 1.09347861e+26
+```
+
+# Outliers
+In the dataset tenxpayTX, there is one outlier.
+
+```{r}
+outliers <- subset(rawTokenData, ttokenAmount >= 1.09347861e+26)
+head(outliers)
+```
+
+# Convert UNIX epoch to Date object
+```{r}
+tokenData$tunixTime = as.POSIXct(tokenData$tunixTime,origin = "1970-01-01",tz = "GMT")
+tokenData$tunixTime = format(tokenData$tunixTime, format="%Y-%m-%d")
+tokenData$tunixTime = as.Date(tokenData$tunixTime, format="%Y-%m-%d")
+tokenDataInDate <- tokenData
+head(tokenDataInDate)
+priceDataFormated <- priceData
+priceDataFormated$Date = as.Date(priceDataFormated$Date, format="%m/%d/%Y")
+head(priceDataFormated)
+```
+
+# Keep the data between 2017-06-27 and 2018-05-06 which is the overlapping of the token and price
+```{r}
+priceStartDate <- min(priceDataFormated$Date)
+tokenStartDate <- min(tokenDataInDate$tunixTime)
+priceEndDate <- max(priceDataFormated$Date)
+tokenEndDate <- max(tokenDataInDate$tunixTime)
+startDate <- max(priceStartDate, tokenStartDate)
+endDate <- min(priceEndDate, tokenEndDate)
+```
+
+# 1st try to creat layers - 100 layers
+```{r}
+layer0 <- tokenDataInDate
+layer1 <- subset(tokenDataInDate, ttokenAmount <= 0.01 * maxt)
+layer2 <- subset(tokenDataInDate, ttokenAmount > 0.01 * maxt & ttokenAmount <= 0.02 * maxt)
+layer3 <- subset(tokenDataInDate, ttokenAmount > 0.02 * maxt & ttokenAmount <= 0.03 * maxt)
+layer4 <- subset(tokenDataInDate, ttokenAmount > 0.03 * maxt & ttokenAmount <= 0.04 * maxt)
+layer5 <- subset(tokenDataInDate, ttokenAmount > 0.04 * maxt & ttokenAmount <= 0.05 * maxt)
+layer6 <- subset(tokenDataInDate, ttokenAmount > 0.05 * maxt & ttokenAmount <= 0.06 * maxt)
+layer7 <- subset(tokenDataInDate, ttokenAmount > 0.06 * maxt & ttokenAmount <= 0.07 * maxt)
+layerEmpty <- subset(tokenDataInDate, ttokenAmount > 0.07 * maxt)
+```
+
+# Data distribution for layers
+```{r}
+library(ggplot2)
+ggplot(NULL,aes(x=tunixTime, y=ttokenAmount),color = layer) +
+geom_point(data = layer1, color = "red") +
+geom_point(data = layer2, color = "orange") +
+geom_point(data = layer3, color = "yellow") +
+geom_point(data = layer4, color = "green") +
+geom_point(data = layer5, color = "blue") +
+geom_point(data = layer6, color = "purple") +
+geom_point(data = layer7, color = "grey") +
+labs(title="Data distribution for layers", x="Time", y="Number of Transactions")
+```
+
+
+# Calculate tranfertimes of each layer
+```{r}
+library(plyr)
+tranferTimes0 <- count(layer0, "tunixTime")
+head(tranferTimes0)
+tranferTimes0 <- subset(tranferTimes0, tunixTime >= startDate & tunixTime <= endDate)
+priceDataFormated <- subset(priceDataFormated, Date >= startDate & Date <= endDate)
+
+tranferTimes1 <- count(layer1, "tunixTime")
+head(tranferTimes1)
+tranferTimes1 <- subset(tranferTimes1, tunixTime >= startDate & tunixTime <= endDate)
+priceDataFormated <- subset(priceDataFormated, Date >= startDate & Date <= endDate)
+
+tranferTimes2 <- count(layer2, "tunixTime")
+head(tranferTimes2)
+tranferTimes2 <- subset(tranferTimes2, tunixTime >= startDate & tunixTime <= endDate)
+priceDataFormated <- subset(priceDataFormated, Date >= startDate & Date <= endDate)
+
+tranferTimes3 <- count(layer3, "tunixTime")
+head(tranferTimes3)
+tranferTimes3 <- subset(tranferTimes3, tunixTime >= startDate & tunixTime <= endDate)
+priceDataFormated <- subset(priceDataFormated, Date >= startDate & Date <= endDate)
+
+tranferTimes4 <- count(layer4, "tunixTime")
+head(tranferTimes4)
+tranferTimes4 <- subset(tranferTimes4, tunixTime >= startDate & tunixTime <= endDate)
+priceDataFormated <- subset(priceDataFormated, Date >= startDate & Date <= endDate)
+
+tranferTimes5 <- count(layer5, "tunixTime")
+head(tranferTimes5)
+tranferTimes5 <- subset(tranferTimes5, tunixTime >= startDate & tunixTime <= endDate)
+priceDataFormated <- subset(priceDataFormated, Date >= startDate & Date <= endDate)
+
+tranferTimes6 <- count(layer6, "tunixTime")
+head(tranferTimes6)
+tranferTimes6 <- subset(tranferTimes6, tunixTime >= startDate & tunixTime <= endDate)
+priceDataFormated <- subset(priceDataFormated, Date >= startDate & Date <= endDate)
+
+tranferTimes7 <- count(layer7, "tunixTime")
+head(tranferTimes7)
+tranferTimes7 <- subset(tranferTimes7, tunixTime >= startDate & tunixTime <= endDate)
+priceDataFormated <- subset(priceDataFormated, Date >= startDate & Date <= endDate)
+
+tranferTimesOthers <- count(layerEmpty, "tunixTime")
+head(tranferTimesOthers)
+tranferTimesOthers <- subset(tranferTimesOthers, tunixTime >= startDate & tunixTime <= endDate)
+priceDataFormated <- subset(priceDataFormated, Date >= startDate & Date <= endDate)
+```
+
+# mergedData
+```{r}
+mergedData0 <- merge(x=tranferTimes0, y=priceDataFormated, by.x="tunixTime", by.y="Date")
+
+mergedData1 <- merge(x=tranferTimes1, y=priceDataFormated, by.x="tunixTime", by.y="Date")
+
+mergedData2 <- merge(x=tranferTimes2, y=priceDataFormated, by.x="tunixTime", by.y="Date")
+
+mergedData3 <- merge(x=tranferTimes3, y=priceDataFormated, by.x="tunixTime", by.y="Date")
+
+mergedData4 <- merge(x=tranferTimes4, y=priceDataFormated, by.x="tunixTime", by.y="Date")
+
+mergedData5 <- merge(x=tranferTimes5, y=priceDataFormated, by.x="tunixTime", by.y="Date")
+
+mergedData6 <- merge(x=tranferTimes6, y=priceDataFormated, by.x="tunixTime", by.y="Date")
+
+mergedData7 <- merge(x=tranferTimes7, y=priceDataFormated, by.x="tunixTime", by.y="Date")
+
+mergedDataOthers <- merge(x=tranferTimesOthers, y=priceDataFormated, by.x="tunixTime", by.y="Date")
+```
+
+#calculate the correlation
+```{r}
+cor(mergedData0$Open,mergedData0$freq)
+
+cor(mergedData1$Open,mergedData1$freq)
+
+cor(mergedData2$Open,mergedData2$freq)
+
+cor(mergedData3$Open,mergedData3$freq)
+
+cor(mergedData4$Open,mergedData4$freq)
+
+cor(mergedData5$Open,mergedData5$freq)
+
+cor(mergedData6$Open,mergedData6$freq)
+
+cor(mergedData7$Open,mergedData7$freq)
+
+cor(mergedDataOthers$Open,mergedDataOthers$freq)
+```
+
+# 2nd try to create layer
+#Distribution of the transaction amount in logistic scale
+Due to the high range of the data, we preprocess the data by log10()
+```{r}
+logtokens <- log10(tokendataNoOutliers$ttokenAmount)
+hist(logtokens)
+```
+
+
+#Create layer and get the data between two layers
+The data is divided by 10 layers with different order of magnitude.
+We use loop to calculate different The result of each layer is stored in tempResult
+```{r}
+maxamount <- 7.108079e+24
+
+layerLeft <- maxamount*c(1.0e-1, 1.0e-2, 1.0e-3, 1.0e-4, 1.0e-5, 1.0e-6, 1.0e-7, 1.0e-8, 1.0e-9, 1.0e-10)
+
+layerRight <- maxamount*c(1.0e0, 1.0e0, 1.0e0, 1.0e0, 1.0e0, 1.0e0, 1.0e0, 1.0e0, 1.0e0, 1.0e0)
+#layerRight <- maxamount*c(1.0e0, 1.0e-1, 1.0e-2, 1.0e-3, 1.0e-4, 1.0e-5, 1.0e-6, 1.0e-7, 1.0e-8, 1.0e-9)
+tempResult <- data.frame(LeftBound = double(),
+                         RightBound = double(),
+                         numOfTransaction = integer(),
+                         ratio = double(),
+                         corOfOpen = double(),
+                         corOfClose = double(),
+                         corOfHigh = double(),
+                         corOfLow = double(),
+                         corOfHML = double(),
+                         corOfOMC = double())
+
+i <- 0
+for(left in layerLeft){
+  i <- i + 1
+  right <- layerRight[i]
+  tokenDataLeft <- subset(rawTokenData, ttokenAmount <= right)
+  tokenDataFiltered <- subset(tokenDataLeft, ttokenAmount >= left)
+  numOfTran <- nrow(tokenDataFiltered)
+  ratio <- numOfTran/totalTran
+  #change the format of Date
+  tokenDataFiltered$tunixTime = as.POSIXct(tokenDataFiltered$tunixTime,origin = "1970-01-01",tz = "GMT")
+  tokenDataFiltered$tunixTime = format(tokenDataFiltered$tunixTime, format="%Y-%m-%d")
+  tokenDataFiltered$tunixTime = as.Date(tokenDataFiltered$tunixTime, format="%Y-%m-%d")
+  
+  library(plyr)
+  tranferTimes <- count(tokenDataFiltered, "tunixTime")
+  priceDataFormated <- priceData
+  priceDataFormated$Date = as.Date(priceDataFormated$Date, format="%m/%d/%Y")
+  
+  #find the boundary of the date
+  priceStartDate <- min(priceDataFormated$Date)
+  tokenStartDate <- min(tranferTimes$tunixTime)
+  priceEndDate <- max(priceDataFormated$Date)
+  tokenEndDate <- max(tranferTimes$tunixTime)
+  #merge the data by date
+  tranferTimes <- subset(tranferTimes, tunixTime >= priceStartDate & tunixTime >= tokenStartDate & tunixTime <= priceEndDate & tunixTime <= tokenEndDate)
+  priceDataFormated <- subset(priceDataFormated, Date >= priceStartDate & Date >= tokenStartDate & Date <= priceEndDate & Date <= tokenEndDate)
+  mergedData <- merge(x=tranferTimes, y=priceDataFormated, by.x="tunixTime", by.y="Date")
+  #calculate the correlation with different features
+  openCor <- cor(mergedData$Open, mergedData$freq) #correlation between number of transactions and open price
+  closeCor <- cor(mergedData$Close, mergedData$freq) #correlation between number of transactions and close price
+  highCor <- cor(mergedData$High, mergedData$freq) #correlation between number of transactions and high price
+  lowCor <- cor(mergedData$Low, mergedData$freq) #correlation between number of transactions and low price
+  HMLCor <- cor(mergedData$High - mergedData$Low, mergedData$freq) #correlation between number of transactions and high price - low price
+  OMCCor <- cor(mergedData$Open - mergedData$Close, mergedData$freq) #correlation between number of transactions and open price - close price
+  
+  
+  #store the result
+  tempResult[i,] <- c(left, right, numOfTran, ratio, openCor, closeCor,  highCor, lowCor, HMLCor, OMCCor)
+  
+}
+
+```
+
+#Result
+```{r}
+tempResult
+```
+
+#Conclusion
+Referring to the result, we found that the number of transactions and high price - low price has high correlations when the amount of transaction increases. That means the more difference between high price and low price it is, the more transactions with huge amount will happen.
+

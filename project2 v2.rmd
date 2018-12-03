@@ -1,0 +1,100 @@
+---
+title: "project2"
+author: "Zhenjie Zhao, Zhenpeng Liu"
+date: "November 27, 2018"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+# Read the dataset from the file
+```{r}
+rawTokenData <- read.table("/Users/J/Desktop/6313.18f/project2/networktenxpayTX.txt", header = FALSE)
+colnames(rawTokenData) <- c("fromNodeID", "toNodeID", "tunixTime", "ttokenAmount")
+tokendataNoOutliers <- subset(rawTokenData, ttokenAmount <= 1.09347861e+26)
+tokenData <- tokendataNoOutliers
+rowNumber <- nrow(tokenData)
+priceData <- read.table("/Users/J/Desktop/6313.18f/project2/tenxpay.txt", header = FALSE)
+colnames(priceData) <- c("Date", "Open", "High", "Low", "Close", "Volume", "Market Cap")
+
+totalTran <- nrow(tokendataNoOutliers)
+maxt <- 1.09347861e+26
+```
+
+# Convert UNIX epoch to Date object and initializing the data for analysis
+The data is initialized by taking the feature data one day in advance, which is convinient for the feature extraction.
+```{r}
+tokenData$tunixTime = as.POSIXct(tokenData$tunixTime,origin = "1970-01-01",tz = "GMT")
+tokenData$tunixTime = format(tokenData$tunixTime, format="%Y-%m-%d")
+tokenData$tunixTime = as.Date(tokenData$tunixTime, format="%Y-%m-%d")
+tokenDataInDate <- tokenData
+head(tokenDataInDate)
+priceDataFormated <- priceData
+priceDataFormated$Date = as.Date(priceDataFormated$Date, format="%m/%d/%Y")
+priceDataFormated <- priceDataFormated[order(priceDataFormated$Date),]
+priceDataFormated$open_return <- priceDataFormated$Open[-1] / priceDataFormated$Open - 1
+priceDataFormated$close_return <- priceDataFormated$Close[-1] / priceDataFormated$Close - 1
+priceDataFormated$open_return_prev <- priceDataFormated$open_return
+priceDataFormated$close_return_prev <- priceDataFormated$close_return
+priceDataFormated <- na.omit(transform(priceDataFormated, open_return_prev = c(0, open_return_prev[-nrow(priceDataFormated)])))
+priceDataFormated <- na.omit(transform(priceDataFormated, close_return_prev = c(0, close_return_prev[-nrow(priceDataFormated)])))
+head(priceDataFormated)
+```
+
+
+# Keep the data between 2017-06-27 and 2018-05-06 which is the overlapping of the token and price
+```{r}
+priceStartDate <- min(priceDataFormated$Date)
+tokenStartDate <- min(tokenDataInDate$tunixTime)
+priceEndDate <- max(priceDataFormated$Date)
+tokenEndDate <- max(tokenDataInDate$tunixTime)
+startDate <- max(priceStartDate, tokenStartDate)
+endDate <- min(priceEndDate, tokenEndDate)
+priceDataFormated <- subset(priceDataFormated, Date >= startDate & Date <= endDate)
+tokenDataInDate <- subset(tokenDataInDate, tunixTime >= startDate & tunixTime <= endDate)
+```
+
+# Extract features
+The following features are extracted as alternatives for the regression analysis.
+open_return: open price's growth rate from t-2 day to t-1 day; 
+close_return: price's growth rate from t-2 day to t-1 day; 
+HML: the difference between the high price and the low price on t-1 day; 
+CMO: the difference between the close price and the open price on t-1 day;
+total_transfer_time: number of transactions on t-1 day; 
+mt10_time: percentage of investors who bought more than 10 tokens on t-1 day;
+Volume:trading volume on t-1 day.
+```{r}
+library(plyr)
+tranferTimes <- count(tokenDataInDate, "tunixTime")
+tokenDataInDate_mt10 <- subset(tokenDataInDate, ttokenAmount > 10)
+tranferTimes_mt10 <- count(tokenDataInDate_mt10, "tunixTime")
+final_data <- merge(x=tranferTimes, y=tranferTimes_mt10, by.x="tunixTime", by.y="tunixTime")
+colnames(final_data) <- c("Date","total_transfer_time", "mt10_time")
+final_data <- merge(x=final_data, y=priceDataFormated, by.x="Date", by.y="Date")
+final_data$CMO <- final_data$Close - final_data$Open
+final_data$HML <- final_data$High - final_data$Low
+  
+```
+
+# Feature analysis
+The following figure is the correlation between each pair in the order of ["open_return","open_return_prev","HML","CMO", "total_transfer_time", "mt10_time", "Volume"]
+```{r}
+library(psych)
+pairs.panels(final_data[c("open_return","close_return","HML","CMO", "total_transfer_time", "mt10_time", "Volume")]) 
+```
+
+# Multiple regression analysis
+After trying some combinations, we found open_return ~ mt10_time + HML + CMO is a good one which performs better than others.
+```{r}
+#ins_model <- lm(price_return~per_tranferTimes+per_ivst_mt10+per_HmL+price_return,data=features)
+ins_model <- lm(open_return~mt10_time+HML+CMO,data=final_data)
+ins_model 
+summary(ins_model)
+```
+
+The Residuals section provides the main statistics of the prediction errors. In our model, the median residuals is -0.00197 which is small enough to prove the accuracy of the model;
+The asterisk mark represents the predictive power of each feature in the model. Most of the features in the model has 2 or 3 asterisk marks, which provides a strong predictive power of each feature in the model;
+The Multiple R-squared values (also known as decision coefficients) provide a way to measure the performance of a model, that is, how well the model can interpret the values of dependent variables as a whole. In our model, the Multiple R-squared value is 0.5218, the Adjusted R-squared value is 0.5172, which are high enough to present that performance of our model is good and satisfactory.
+
